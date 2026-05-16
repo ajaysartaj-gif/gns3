@@ -1,11 +1,12 @@
 import streamlit as st
+import requests
+import os
 from engine.intent_processor import IntentProcessor
 from engine.orchestration_core import OrchestrationCore
 
-# Page styling configuration definitions
 st.set_page_config(page_title="NetBrain Enterprise AI OS", page_icon="🌐", layout="wide")
 
-# Custom injection of modern CSS mirroring Gemini UX models
+# Modern Dark UI Theme Styling
 st.markdown("""
     <style>
     .stApp { background-color: #090a0f; color: #f0f0f5; }
@@ -16,67 +17,101 @@ st.markdown("""
         margin-bottom: 5px; 
     }
     .subtext { color: #8e92a6; font-size: 1.1rem; margin-bottom: 30px; }
-    .console-card { background-color: #131520; border: 1px solid #222538; border-radius: 14px; padding: 25px; margin-bottom: 20px; }
-    .intent-badge { background-color: #2b1f4d; color: #bca7f5; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
+    .answer-card { background-color: #131520; border: 1px solid #23a964; border-radius: 14px; padding: 25px; margin-bottom: 25px; }
+    .console-card { background-color: #131520; border: 1px solid #222538; border-radius: 14px; padding: 20px; margin-top: 15px; }
     </style>
-""", unsafe_allow_html=True) # <-- Fixed here
+""", unsafe_allow_html=True)
 
-st.markdown("<h1 class='gemini-gradient-header'>NetBrain Orchestration Core</h1>", unsafe_allow_html=True) # <-- Fixed here
-st.markdown("<div class='subtext'>Universal AI Control Engine for multi-router network fabrics.</div>", unsafe_allow_html=True) # <-- Fixed here
+st.markdown("<h1 class='gemini-gradient-header'>NetBrain Orchestration Core</h1>", unsafe_allow_html=True)
+st.markdown("<div class='subtext'>Universal AI Control Engine for multi-router network fabrics.</div>", unsafe_allow_html=True)
 
-# Session tracking initialization
 if "execution_history" not in st.session_state:
     st.session_state.execution_history = []
 
-# Main Interface Work Area Split
+def summarize_output_with_ai(user_prompt, raw_logs):
+    """Passes the raw router log back to Gemini to extract a direct answer."""
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    endpoint = "https://openrouter.ai/api/v1/chat/completions"
+    
+    system_rule = (
+        "You are the voice of an intelligent network assistant. The user asked a specific question.\n"
+        "I will provide you with the raw Cisco router output logs answering that question.\n"
+        "Your job is to read the logs and answer the user's question directly, clearly, and concisely.\n"
+        "If they asked for an IP, extract and give them just the IP address cleanly. Do not show raw command outputs."
+    )
+    
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {
+        "model": "google/gemini-2.5-flash",
+        "messages": [
+            {"role": "system", "content": system_rule},
+            {"role": "user", "content": f"User Question: {user_prompt}\n\nRaw Router Logs:\n{raw_logs}"}
+        ]
+    }
+    try:
+        response = requests.post(endpoint, headers=headers, json=payload, timeout=20)
+        return response.json()['choices'][0]['message']['content'].strip()
+    except:
+        return "Unable to parse clean summary. Please review raw logs below."
+
+# Work Canvas Split
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.markdown("### Active Architecture Session")
-    if not st.session_state.execution_history:
-        st.info("The configuration matrix is clean. Use the core execution input block below to dispatch autonomous parameters.")
+    st.markdown("### Response Console")
     
-    for idx, session in enumerate(st.session_state.execution_history):
-        with st.container():
+    if st.session_state.execution_history:
+        # ALWAYS pull the absolute latest interaction from the tracking history array
+        latest_session = st.session_state.execution_history[-1]
+        
+        # Display the crisp, AI-summarized answer card
+        st.markdown(f"""
+        <div class='answer-card'>
+            <div style='font-size: 0.9rem; color: #8e92a6; text-transform: uppercase; margin-bottom: 5px;'>Direct AI Answer</div>
+            <div style='font-size: 1.4rem; font-weight: 500; color: #f0f0f5;'>{latest_session['ai_summary']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Expandable drop-down for troubleshooting raw logs if needed
+        with st.expander("View Raw Cisco CLI Logs & Telemetry"):
             st.markdown(f"""
             <div class='console-card'>
-                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;'>
-                    <span style='font-size: 1.2rem; font-weight: bold; color: #a3b8cc;'>Request #{idx+1}: "{session['prompt']}"</span>
-                    <span class='intent-badge'>{session['schema']['feature_type'].upper()}</span>
-                </div>
-                <p style='color: #6c728a; font-family: monospace; font-size: 0.9rem;'>TARGET DEVICES: {', '.join(session['schema']['target_nodes'])}</p>
-                <h5 style='color: #8c90a6;'>Execution Verification Output Logs:</h5>
-                <pre style='background-color: #0b0c12; color: #4af626; padding: 15px; border-radius: 8px; border: 1px solid #1a1c29; max-height: 300px; overflow-y: auto;'>{session['logs']}</pre>
+                <p style='color: #6c728a; font-family: monospace;'>TARGET DEVICES: {', '.join(latest_session['schema']['target_nodes'])}</p>
+                <pre style='background-color: #0b0c12; color: #4af626; padding: 15px; border-radius: 8px;'>{latest_session['logs']}</pre>
             </div>
-            """, unsafe_allow_html=True) # <-- Fixed here
+            """, unsafe_allow_html=True)
+    else:
+        st.info("System ready. Input an informational query or configuration command below.")
 
 with col2:
-    st.markdown("### AI Parameters Insight")
+    st.markdown("### Active Parameters")
     if st.session_state.execution_history:
-        latest = st.session_state.execution_history[-1]
-        st.json(latest['schema'])
+        st.json(st.session_state.execution_history[-1]['schema'])
     else:
-        st.caption("Structured JSON blueprints will reflect here automatically once intent parsing cycles finish execution.")
+        st.caption("JSON parameters blueprint will render here.")
 
-# Base Input Panel matching Gemini Prompting Interface Designs
-prompt_input = st.chat_input("Dispatch declarative infrastructure commands (e.g., 'Configure a vlan with id 50 on r1 and r2')")
+# Bottom Entry Panel
+prompt_input = st.chat_input("Ask a question or configure a feature...")
 
 if prompt_input:
-    # Trigger processing execution sequence
-    with st.spinner("🤖 Processing network intent parameters globally..."):
+    with st.spinner("🤖 Orchestrating network fabric requests..."):
         processor = IntentProcessor()
         orchestrator = OrchestrationCore()
         
-        # 1. Structural schema interpretation
+        # 1. Get structured schema intent
         schema_blueprint = processor.extract_network_parameters(prompt_input)
         
-        # 2. Command generation and remote fabric deployment
+        # 2. Fetch raw data from routers
         output_reports = orchestrator.deploy_feature(schema_blueprint)
         
-        # 3. Store transaction parameters cleanly inside history trace state
+        # 3. Clean up the response using Gemini
+        clean_summary = summarize_output_with_ai(prompt_input, output_reports)
+        
+        # 4. Save to history state
         st.session_state.execution_history.append({
             "prompt": prompt_input,
             "schema": schema_blueprint,
-            "logs": output_reports
+            "logs": output_reports,
+            "ai_summary": clean_summary
         })
         st.rerun()
