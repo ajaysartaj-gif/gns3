@@ -4,6 +4,7 @@ import json
 import requests
 from dotenv import load_dotenv
 
+# Load variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
@@ -11,8 +12,13 @@ PORT = 5140
 
 def send_to_gemini_ai(raw_log: str, router_ip: str):
     print("\n🤖 Passing raw log to Gemini AI for structural diagnosis...")
+    
     api_key = os.getenv("OPENROUTER_API_KEY")
     endpoint = "https://openrouter.ai/api/v1/chat/completions"
+    
+    if not api_key:
+        print("[!] Error: OPENROUTER_API_KEY environment variable is not set in your .env file!")
+        return None
     
     system_rules = (
         "You are an Autonomous AI NetDevOps Diagnostic Engineer.\n"
@@ -27,7 +33,11 @@ def send_to_gemini_ai(raw_log: str, router_ip: str):
         "}"
     )
 
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {api_key}", 
+        "Content-Type": "application/json"
+    }
+    
     payload = {
         "model": "google/gemini-2.5-flash",
         "messages": [
@@ -38,10 +48,18 @@ def send_to_gemini_ai(raw_log: str, router_ip: str):
     
     try:
         response = requests.post(endpoint, headers=headers, json=payload, timeout=20)
-        ai_response = response.json()['choices'][0]['message']['content'].strip()
+        resp_json = response.json()
+        
+        # Diagnostic safety check to look inside OpenRouter's response payload
+        if 'choices' not in resp_json:
+            print(f"[!] OpenRouter API Error response: {resp_json}")
+            return None
+            
+        ai_response = resp_json['choices'][0]['message']['content'].strip()
         print("✅ Gemini Analysis Complete:")
         print(ai_response)
         return json.loads(ai_response)
+        
     except Exception as e:
         print(f"[!] Gemini processing failed: {e}")
         return None
@@ -58,7 +76,7 @@ def handle_syslog():
     print(f"\n[🚨 WEBHOOK TELEMETRY RECEIVED]")
     print(f"    Raw Data: {raw_log}")
     
-    # Fire off to Gemini asynchronously or sequentially
+    # Process the alert using the patched AI diagnostic engine
     send_to_gemini_ai(raw_log, router_ip)
     return jsonify({"status": "received"}), 200
 
