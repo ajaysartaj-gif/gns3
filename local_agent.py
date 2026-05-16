@@ -22,8 +22,8 @@ def send_to_gemini_ai(raw_log: str, router_ip: str):
         "{\n"
         "  \"incident_summary\": \"Human readable description of what broke\",\n"
         "  \"target_nodes\": [\"r1\"],\n"
-        "  \"proposed_feature\": \"ospf\" | \"vlan\" | \"interface\",\n"
-        "  \"remediation_variables\": {\"description\": \"variables for the fix configuration\"}\n"
+        "  \"proposed_feature\": \"interface\",\n"
+        "  \"remediation_variables\": {\"status\": \"down\"}\n"
         "}"
     )
 
@@ -49,13 +49,16 @@ def send_to_gemini_ai(raw_log: str, router_ip: str):
 @app.route('/syslog', methods=['POST'])
 def handle_syslog():
     payload = request.json
+    if not payload:
+        return jsonify({"error": "No payload received"}), 400
+        
     raw_log = payload.get('log', '')
-    router_ip = payload.get('ip', '192.168.87.51')
+    router_ip = payload.get('ip', '192.168.87.128')
     
     print(f"\n[🚨 WEBHOOK TELEMETRY RECEIVED]")
     print(f"    Raw Data: {raw_log}")
     
-    # Pass it straight to Gemini
+    # Fire off to Gemini asynchronously or sequentially
     send_to_gemini_ai(raw_log, router_ip)
     return jsonify({"status": "received"}), 200
 
