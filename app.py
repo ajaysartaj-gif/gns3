@@ -19,10 +19,10 @@ st.markdown("""
     .console-card { background-color: #131520; border: 1px solid #222538; border-radius: 14px; padding: 25px; margin-bottom: 20px; }
     .intent-badge { background-color: #2b1f4d; color: #bca7f5; padding: 4px 12px; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
     </style>
-""", unsafe_with_html=True)
+""", unsafe_allow_html=True)
 
 st.markdown("<h1 class='gemini-gradient-header'>NetBrain Orchestration Core</h1>", unsafe_with_html=True)
-st.markdown("<div class='subtext'>Universal AI Control Engine for multi-router network fabrics.</div>", unsafe_with_html=True)
+st.markdown("<div class='subtext'>Universal AI Control Engine for multi-router network fabrics.</div>", unsafe_allow_html=True)
 
 # Session tracking initialization
 if "execution_history" not in st.session_state:
@@ -48,7 +48,7 @@ with col1:
                 <h5 style='color: #8c90a6;'>Execution Verification Output Logs:</h5>
                 <pre style='background-color: #0b0c12; color: #4af626; padding: 15px; border-radius: 8px; border: 1px solid #1a1c29; max-height: 300px; overflow-y: auto;'>{session['logs']}</pre>
             </div>
-            """, unsafe_with_html=True)
+            """, unsafe_allow_html=True)
 
 with col2:
     st.markdown("### AI Parameters Insight")
