@@ -10,20 +10,31 @@ class OrchestrationCore:
         commands = []
 
         if feature == "ospf":
+            # Proactive Duplex Auto-Healing optimization step
+            # Split cleanly into individual items so Netmiko parses them without breaking
+            if node_target == "r2":
+                commands.extend([
+                    "interface FastEthernet0/0",
+                    "duplex full"
+                ])
+            elif node_target == "r1":
+                commands.extend([
+                    "interface GigabitEthernet1/0",
+                    "duplex full"
+                ])
+                
             # Realized directly against your 1.1.1.0 network backbone
-            commands = [
+            commands.extend([
                 f"router ospf {v.get('process_id', 1)}",
                 "network 1.1.1.0 0.0.0.255 area 0",
                 "log-adjacency-changes"
-            ]
-            # Proactive Duplex Auto-Healing optimization step
-            if node_target == "r2":
-                commands.insert(0, "interface FastEthernet0/0\n duplex full")
-            elif node_target == "r1":
-                commands.insert(0, "interface GigabitEthernet1/0\n duplex full")
+            ])
                 
         elif feature == "vlan":
-            commands = [f"vlan {v.get('vlan_id', 10)}", f"name NETBRAIN_VLAN_{v.get('vlan_id', 10)}"]
+            commands = [
+                f"vlan {v.get('vlan_id', 10)}", 
+                f"name NETBRAIN_VLAN_{v.get('vlan_id', 10)}"
+            ]
             
         elif feature == "static_route":
             commands = [f"ip route {v.get('network_address')} 255.255.255.0 {self.connector.r2_ip}"]
