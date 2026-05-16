@@ -9,21 +9,23 @@ class OrchestrationCore:
         v = schema.get("variables", {})
         commands = []
 
+        # If the feature type is just an informational query, do not generate configuration commands
+        if feature in ["telemetry", "query", "unknown"]:
+            return []
+
         if feature == "ospf":
-            # Realized directly against your 1.1.1.0 network backbone
-            commands = [
+            # Removed the problematic interface duplex settings to prevent IOS command rejection
+            commands.extend([
                 f"router ospf {v.get('process_id', 1)}",
                 "network 1.1.1.0 0.0.0.255 area 0",
                 "log-adjacency-changes"
-            ]
-            # Proactive Duplex Auto-Healing optimization step
-            if node_target == "r2":
-                commands.insert(0, "interface FastEthernet0/0\n duplex full")
-            elif node_target == "r1":
-                commands.insert(0, "interface GigabitEthernet1/0\n duplex full")
+            ])
                 
         elif feature == "vlan":
-            commands = [f"vlan {v.get('vlan_id', 10)}", f"name NETBRAIN_VLAN_{v.get('vlan_id', 10)}"]
+            commands = [
+                f"vlan {v.get('vlan_id', 10)}", 
+                f"name NETBRAIN_VLAN_{v.get('vlan_id', 10)}"
+            ]
             
         elif feature == "static_route":
             commands = [f"ip route {v.get('network_address')} 255.255.255.0 {self.connector.r2_ip}"]
@@ -39,12 +41,22 @@ class OrchestrationCore:
         return commands
 
     def deploy_feature(self, normalized_schema: dict) -> str:
+        feature = normalized_schema.get("feature_type", "").lower()
         show_payload = normalized_schema.get("verification_commands", ["show ip interface brief"])
-        targets = normalized_schema.get("target_nodes", ["r1", "r2"])
+        targets = normalized_schema.get("target_nodes", ["r1"])
         
+        # Safe catch: If the user is just asking an informational question, fetch live telemetry data instead
+        if feature in ["telemetry", "query", "unknown"]:
+            execution_report = "=== Live Network Telemetry State ===\n"
+            if "r1" in targets:
+                execution_report += "[FETCHING FROM R1]...\n"
+                execution_report += self.connector.execute_r1([], show_payload) + "\n"
+            if "r2" in targets:
+                execution_report += "[FETCHING FROM R2]...\n"
+                execution_report += self.connector.execute_r2_via_jump([], show_payload) + "\n"
+            return execution_report
+
         execution_report = "=== NetBrain Orchestration Log ===\n"
-        
-        # Pre-Execution Stage: Let's explicitly create the admin credential on R2 if missing
         remediation_user_payload = ["username admin privilege 15 secret admin"]
         
         if "r1" in targets:
@@ -55,7 +67,6 @@ class OrchestrationCore:
         if "r2" in targets:
             r2_cmds = self.generate_cli_payload(normalized_schema, "r2")
             execution_report += "[DEPLOYING TO R2]...\n"
-            # We push the username statement first to avoid ssh authentication deadlocks
             final_r2_cmds = remediation_user_payload + r2_cmds + ["write memory"]
             execution_report += self.connector.execute_r2_via_jump(final_r2_cmds, show_payload) + "\n"
             
