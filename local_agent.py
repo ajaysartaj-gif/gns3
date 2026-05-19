@@ -13,12 +13,9 @@ PORT = 5140
 def send_to_gemini_ai(raw_log: str, router_ip: str):
     print("\n🤖 Passing raw log to Gemini AI for structural diagnosis...")
     
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    # Direct token string assignment
+    api_key = "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"
     endpoint = "https://openrouter.ai/api/v1/chat/completions"
-    
-    if not api_key:
-        print("[!] Error: OPENROUTER_API_KEY environment variable is not set in your .env file!")
-        return None
     
     system_rules = (
         "You are an Autonomous AI NetDevOps Diagnostic Engineer.\n"
@@ -34,28 +31,38 @@ def send_to_gemini_ai(raw_log: str, router_ip: str):
     )
 
     headers = {
-        "Authorization": f"Bearer {api_key}", 
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     
+    # Restricted max_tokens to 1000 to comply with free tier allocations
     payload = {
         "model": "google/gemini-2.5-flash",
         "messages": [
             {"role": "system", "content": system_rules},
             {"role": "user", "content": f"Source Router IP: {router_ip}\nRaw Syslog Alert Text: {raw_log}"}
-        ]
+        ],
+        "max_tokens": 2000
     }
     
     try:
         response = requests.post(endpoint, headers=headers, json=payload, timeout=20)
         resp_json = response.json()
         
-        # Diagnostic safety check to look inside OpenRouter's response payload
         if 'choices' not in resp_json:
             print(f"[!] OpenRouter API Error response: {resp_json}")
             return None
             
         ai_response = resp_json['choices'][0]['message']['content'].strip()
+        
+        # --- FIX: Dynamically strip Markdown formatting blocks if returned ---
+        if ai_response.startswith("```"):
+            ai_response = ai_response.split("\n", 1)[1]
+        if ai_response.endswith("```"):
+            ai_response = ai_response.rsplit("\n", 1)[0]
+        ai_response = ai_response.strip()
+        # ---------------------------------------------------------------------
+
         print("✅ Gemini Analysis Complete:")
         print(ai_response)
         return json.loads(ai_response)
