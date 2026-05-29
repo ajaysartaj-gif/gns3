@@ -14,7 +14,7 @@ def send_to_gemini_ai(raw_log: str, router_ip: str):
     print("\n🤖 Passing raw log to Gemini AI for structural diagnosis...")
     
     # Direct token string assignment
-    api_key = "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"
+    api_key = os.getenv("OPENROUTER_API_KEY")
     endpoint = "https://openrouter.ai/api/v1/chat/completions"
     
     system_rules = (
